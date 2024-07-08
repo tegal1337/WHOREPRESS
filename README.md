@@ -1,4 +1,4 @@
-<center><image src="assets/image.png"></center>
+<center><image src="assets/demo.png"></center>
 <p>
   <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blue.svg?cacheSeconds=2592000" />
   <a href="#" target="_blank">
