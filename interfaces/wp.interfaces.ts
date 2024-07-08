@@ -9,7 +9,6 @@ export interface IWordpress {
     hits: number;
     bad: number;
     cpm: number;
-    result: import('fs').WriteStream;
     start: number;
     logBuffer: LogEntry[];
     displayUI(): void;

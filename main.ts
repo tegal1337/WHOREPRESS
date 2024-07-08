@@ -73,7 +73,6 @@ class Wordpress implements IWordpress {
     public hits: number;
     public bad: number;
     public cpm: number;
-    public result: fs.WriteStream;
     public start: number;
     public logBuffer: LogEntry[];
     private client: any;
@@ -82,7 +81,6 @@ class Wordpress implements IWordpress {
         this.hits = 0;
         this.bad = 0;
         this.cpm = 0;
-        this.result = fs.createWriteStream(outputFile, { flags: 'a+' });
         this.start = Date.now();
         this.logBuffer = [];
         this.client = wrapper(axios.create({ jar: new CookieJar() }));
@@ -185,10 +183,8 @@ class Wordpress implements IWordpress {
 
                 if (isAdmin && (r.data.includes('dashicons-admin-plugins') || r.data.includes('wp-admin-bar'))) {
                     this.hits += 1;
-                    if (this.result.writable) {
-                        this.result.write(`${url} - ${username}|${password}\n`);
-                    }
                     this.logBuffer.push({ type: 'HIT', url, username, password });
+                    fs.writeFileSync(outputFile, `${url} - ${username}|${password}\n`, { flag: 'a' });
                 } else {
                     this.bad += 1;
                     this.logBuffer.push({ type: 'BAD', url, username, password });
@@ -224,7 +220,6 @@ function readAccounts(filename: string): void {
     });
 
     rl.on('close', () => {
-        wp.result.end();
     });
 }
 
@@ -234,8 +229,6 @@ wp.displayUI();
 readAccounts(filename);
 
 process.on('SIGINT', () => {
-    wp.result.end(() => {
-        console.log('Wait a few seconds for threads to exit...');
-        process.exit();
-    });
+    console.log('Wait a few seconds for threads to exit...');
+    process.exit();
 });
