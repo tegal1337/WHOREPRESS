@@ -8,7 +8,6 @@ import { banner } from './constant/banner';
 import { IWordpress, LogEntry } from './interfaces/wp.interfaces';
 import blessed from 'blessed';
 
-// Get command line arguments for filename and debug mode
 const filename: string = process.argv[2];
 const debugMode: boolean = process.argv.includes('--debug');
 
