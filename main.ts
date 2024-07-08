@@ -205,6 +205,48 @@ class Wordpress implements IWordpress {
     }
 }
 
+function showLoadingScreen(): Promise<void> {
+    return new Promise((resolve) => {
+        const loadingBox = blessed.box({
+            top: 'center',
+            left: 'center',
+            width: '90%',
+            height: '80%',
+            content: colors.green('Initializing...\n'),
+            tags: true,
+            border: {
+                type: 'line'
+            },
+            style: {
+                fg: 'green',
+                bg: 'black',
+                border: {
+                    fg: 'green'
+                }
+            }
+        });
+
+        screen.append(loadingBox);
+        screen.render();
+
+        let loadingMessage = '';
+        const loadingInterval = setInterval(() => {
+            loadingMessage += '.';
+            if (loadingMessage.length > 3) {
+                loadingMessage = '';
+            }
+            loadingBox.setContent(colors.green(`Initializing${loadingMessage}\n`));
+            screen.render();
+        }, 500);
+
+        setTimeout(() => {
+            clearInterval(loadingInterval);
+            screen.remove(loadingBox);
+            resolve();
+        }, 5000); 
+    });
+}
+
 function readAccounts(filename: string): void {
     const fileStream = fs.createReadStream(filename);
     const rl = readline.createInterface({
@@ -224,9 +266,11 @@ function readAccounts(filename: string): void {
 }
 
 const wp = new Wordpress();
-wp.displayUI();
 
-readAccounts(filename);
+showLoadingScreen().then(() => {
+    wp.displayUI();
+    readAccounts(filename);
+});
 
 process.on('SIGINT', () => {
     console.log('Wait a few seconds for threads to exit...');
