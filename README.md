@@ -11,14 +11,21 @@
 ## Install
 
 ```sh
-npm install
+bun install
 ```
 
 ## Usage
 
 ```sh
-npm start
+bun run main.ts list.txt 
 ```
+## Arguments list
+
+| Arguments | Description | 
+|----------|----------|
+| --admin-only   | check only for admin priviledge   | 
+| --debug    | debug error output   | 
+| --output    | Output file   | 
 
 ## Author
 
