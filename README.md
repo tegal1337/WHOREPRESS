@@ -16,6 +16,11 @@ bun install
 
 ## Usage
 
+make sure you have a list with format
+
+`url:username:pass
+`
+
 ```sh
 bun run main.ts list.txt 
 ```
