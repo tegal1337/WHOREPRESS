@@ -14,5 +14,4 @@ export interface IWordpress {
     displayUI(): void;
     updateTitle(): Promise<void>;
     calculateCpm(): Promise<void>;
-    checkAccount(url: string, username: string, password: string): Promise<void>;
 }

