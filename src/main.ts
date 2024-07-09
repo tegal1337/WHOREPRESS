@@ -39,13 +39,13 @@ const argv = yargs(hideBin(process.argv))
     })
     .demandCommand(1, 'You need to provide a filename')
     .help()
-    .argv;
+    .parseSync();
 
 const filename: string = argv._[0] as string;
-const adminOnly: boolean = argv['admin-only'];
-const outputFile: string = argv.output;
-const debugMode: boolean = argv.debug;
-const concurrency: number = argv.concurrency;
+const adminOnly: boolean = argv['admin-only'] as boolean;
+const outputFile: string = argv.output as string;
+const debugMode: boolean = argv.debug as boolean;
+const concurrency: number = argv.concurrency as number;
 
 const screen = blessed.screen({
     smartCSR: true,
@@ -64,11 +64,9 @@ const logBox = blessed.box({
     content: banner(),
     tags: true,
     scrollable: true,
-    size: 'auto',
     alwaysScroll: true,
     scrollbar: {
-        ch: ' ',
-        inverse: true
+        ch: ' '
     },
     border: {
         type: 'line'
@@ -82,7 +80,7 @@ const logBox = blessed.box({
     }
 });
 
-screen.append(logBox);
+screen.append(logBox)
 
 class Wordpress implements IWordpress {
     public hits: number;
