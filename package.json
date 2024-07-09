@@ -20,6 +20,7 @@
     "axios-cookiejar-support": "^5.0.2",
     "blessed": "^0.1.81",
     "colors": "^1.4.0",
+    "npm-check-updates": "^16.14.20",
     "semaphore": "^1.1.0",
     "tough-cookie": "^4.1.4",
     "yargs": "^17.7.2"

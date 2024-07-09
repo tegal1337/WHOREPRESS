@@ -11,7 +11,7 @@
 ## Install
 
 ```sh
-bun install
+npm install --global whorepress
 ```
 
 ## Usage
@@ -22,7 +22,7 @@ make sure you have a list with format
 `
 
 ```sh
-bun run main.ts list.txt 
+whorepress list.txt 
 ```
 ## Arguments list
 
