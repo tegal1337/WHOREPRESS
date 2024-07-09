@@ -63,6 +63,11 @@ const argv = yargs(hideBin(process.argv))
         description: 'Number of concurrent requests',
         default: 5
     })
+    .option('timeout', {
+        type: 'number',
+        description: 'Request timeout in seconds',
+        default: 10
+    })
     .demandCommand(1, 'You need to provide a filename')
     .help()
     .parseSync();
@@ -193,8 +198,9 @@ class Wordpress implements IWordpress {
                 const response = await this.client.post(url, payload.toString(), {
                     headers,
                     maxRedirects: 0,
-                    validateStatus: (status) => status === 302 || status === 200,
-                    withCredentials: true
+                    validateStatus: (status: number) => status === 302 || status === 200,
+                    withCredentials: true,
+                    timeout: argv.timeout,
                 });
 
                 const cookies = response.headers['set-cookie'];
@@ -213,8 +219,10 @@ class Wordpress implements IWordpress {
                     const r = await this.client.get(dashboardUrl, {
                         headers: {
                             ...headers,
-                            'Cookie': cookieHeader
+                            'Cookie': cookieHeader,
+                            
                         },
+                        timeout: argv.timeout,
                         withCredentials: true
                     });
 
@@ -311,7 +319,7 @@ function readAccounts(filename: string, wp: Wordpress): void {
     });
 
     rl.on('close', () => {
-        console.log(colors.green('Finished reading accounts.'));
+       
     });
 }
 
