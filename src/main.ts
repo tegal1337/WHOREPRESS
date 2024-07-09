@@ -12,7 +12,6 @@ import blessed from 'blessed';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import semaphore from 'semaphore';
-import { exec } from 'child_process';
 import ncu from 'npm-check-updates';
 
 async function checkForUpdates() {
@@ -39,7 +38,6 @@ async function checkForUpdates() {
     }
 }
 
-// Define the yargs configuration
 const argv = yargs(hideBin(process.argv))
     .command('upgrade', 'Upgrade to the latest version', {}, async () => {
         await checkForUpdates();
@@ -63,17 +61,11 @@ const argv = yargs(hideBin(process.argv))
         description: 'Number of concurrent requests',
         default: 5
     })
-    .option('timeout', {
-        type: 'number',
-        description: 'Request timeout in seconds',
-        default: 10
-    })
     .demandCommand(1, 'You need to provide a filename')
     .help()
     .parseSync();
 
 if (argv._[0] === 'upgrade') {
-    // The upgrade command is handled above, so we don't need to do anything here.
     process.exit(0);
 }
 
@@ -198,9 +190,8 @@ class Wordpress implements IWordpress {
                 const response = await this.client.post(url, payload.toString(), {
                     headers,
                     maxRedirects: 0,
-                    validateStatus: (status: number) => status === 302 || status === 200,
-                    withCredentials: true,
-                    timeout: argv.timeout,
+                    validateStatus: (status) => status === 302 || status === 200,
+                    withCredentials: true
                 });
 
                 const cookies = response.headers['set-cookie'];
@@ -219,10 +210,8 @@ class Wordpress implements IWordpress {
                     const r = await this.client.get(dashboardUrl, {
                         headers: {
                             ...headers,
-                            'Cookie': cookieHeader,
-                            
+                            'Cookie': cookieHeader
                         },
-                        timeout: argv.timeout,
                         withCredentials: true
                     });
 
