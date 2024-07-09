@@ -1,17 +1,20 @@
 {
   "name": "whorepress",
   "version": "1.0.0",
-  "main": "main.js",
+  "main": "dist/main.js",
+  "bin": {
+    "whorepress": "./dist/main.js"
+  },
   "scripts": {
-    "start": "tsx main.ts"
+    "start": "tsc && node dist/main.js",
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@types/colors": "^1.2.1",
-    "@types/node": "^20.14.10",
     "async-mutex": "^0.5.0",
     "axios": "^1.7.2",
     "axios-cookiejar-support": "^5.0.2",
@@ -19,7 +22,11 @@
     "colors": "^1.4.0",
     "semaphore": "^1.1.0",
     "tough-cookie": "^4.1.4",
-    "tsx": "^4.16.2",
     "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "@types/colors": "^1.2.1",
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3"
   }
 }

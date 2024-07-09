@@ -7,7 +7,7 @@ import colors from 'colors';
 import { banner } from './constant/banner';
 import { IWordpress, LogEntry } from './interfaces/wp.interfaces';
 import blessed from 'blessed';
-import yargs from 'yargs/yargs';
+import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import semaphore from 'semaphore';
 
