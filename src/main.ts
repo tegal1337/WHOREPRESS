@@ -15,9 +15,35 @@ import semaphore from 'semaphore';
 import { exec } from 'child_process';
 import ncu from 'npm-check-updates';
 
+async function checkForUpdates() {
+    console.log(colors.green('Checking for updates...'));
+
+    try {
+        const upgrades = await ncu({
+            packageFile: 'package.json',
+            upgrade: true
+        });
+
+        if (upgrades && Object.keys(upgrades).length > 0) {
+            console.log(colors.green('Updates available:'));
+            for (const pkg in upgrades) {
+                console.log(`${pkg}: ${upgrades[pkg]}`);
+            }
+            console.log(colors.green('Please run the following command to update:'));
+            console.log(colors.cyan('npm update -g whorepress'));
+        } else {
+            console.log(colors.green('You are already using the latest version.'));
+        }
+    } catch (error) {
+        console.error(colors.red('Error checking for updates:'), error);
+    }
+}
+
+// Define the yargs configuration
 const argv = yargs(hideBin(process.argv))
     .command('upgrade', 'Upgrade to the latest version', {}, async () => {
         await checkForUpdates();
+        process.exit(0);
     })
     .option('admin-only', {
         type: 'boolean',
@@ -40,6 +66,11 @@ const argv = yargs(hideBin(process.argv))
     .demandCommand(1, 'You need to provide a filename')
     .help()
     .parseSync();
+
+if (argv._[0] === 'upgrade') {
+    // The upgrade command is handled above, so we don't need to do anything here.
+    process.exit(0);
+}
 
 const filename: string = argv._[0] as string;
 const adminOnly: boolean = argv['admin-only'] as boolean;
@@ -80,7 +111,7 @@ const logBox = blessed.box({
     }
 });
 
-screen.append(logBox)
+screen.append(logBox);
 
 class Wordpress implements IWordpress {
     public hits: number;
@@ -280,40 +311,8 @@ function readAccounts(filename: string, wp: Wordpress): void {
     });
 
     rl.on('close', () => {
+        console.log(colors.green('Finished reading accounts.'));
     });
-}
-
-async function checkForUpdates() {
-    console.log(colors.green('Checking for updates...'));
-
-    try {
-        const upgrades = await ncu({
-            packageFile: 'package.json',
-            upgrade: true
-        });
-
-        if (upgrades && Object.keys(upgrades).length > 0) {
-            console.log(colors.green('Updates available:'));
-            for (const pkg in upgrades) {
-                console.log(`${pkg}: ${upgrades[pkg]}`);
-            }
-            console.log(colors.green('Updating...'));
-
-            exec('npm install --global whorepress@latest', (err, stdout, stderr) => {
-                if (err) {
-                    console.error(colors.red('Error during update:'), err);
-                    return;
-                }
-                console.log(colors.green('Update complete!'));
-                console.log(stdout);
-                if (stderr) console.error(colors.red(stderr));
-            });
-        } else {
-            console.log(colors.green('You are already using the latest version.'));
-        }
-    } catch (error) {
-        console.error(colors.red('Error checking for updates:'), error);
-    }
 }
 
 const wp = new Wordpress(concurrency);
