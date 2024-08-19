@@ -58,7 +58,7 @@ const argv = yargs(hideBin(process.argv))
     .option('concurrency', {
         type: 'number',
         description: 'Number of concurrent requests',
-        default: 5
+        default: 1
     })
     .demandCommand(1, 'You need to provide a filename')
     .help()
@@ -167,6 +167,7 @@ class Wordpress implements IWordpress {
     }
 
     async checkAccount(url: string, username: string, password: string): Promise<void> {
+     
         try {
             const payload = new URLSearchParams({
                 'log': username,
@@ -188,7 +189,7 @@ class Wordpress implements IWordpress {
             const response = await this.client.post(url, payload.toString(), {
                 headers,
                 maxRedirects: 0,
-                timeout: 5000,
+                timeout: 5000, // Ensure timeout is set
                 validateStatus: (status) => status === 302 || status === 200,
                 withCredentials: true
             });
@@ -211,7 +212,7 @@ class Wordpress implements IWordpress {
                         ...headers,
                         'Cookie': cookieHeader
                     },
-                    timeout: 5000,
+                    timeout: 5000, // Ensure timeout is set
                     withCredentials: true
                 });
     
