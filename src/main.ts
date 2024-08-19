@@ -188,7 +188,7 @@ class Wordpress implements IWordpress {
             const response = await this.client.post(url, payload.toString(), {
                 headers,
                 maxRedirects: 0,
-                timeout: 10000, 
+                timeout: 5000,
                 validateStatus: (status) => status === 302 || status === 200,
                 withCredentials: true
             });
@@ -211,7 +211,7 @@ class Wordpress implements IWordpress {
                         ...headers,
                         'Cookie': cookieHeader
                     },
-                    timeout: 10000,
+                    timeout: 5000,
                     withCredentials: true
                 });
     
