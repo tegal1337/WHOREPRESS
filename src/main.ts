@@ -4,6 +4,7 @@ import axios from 'axios';
 import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';
 import fs from 'fs';
+import path from 'path';
 import readline from 'readline';
 import colors from 'colors';
 import { banner } from './constant/banner';
@@ -60,7 +61,11 @@ const argv = yargs(hideBin(process.argv))
         description: 'Number of concurrent requests',
         default: 1
     })
-    .demandCommand(1, 'You need to provide a filename')
+    .option('directory', {
+        type: 'string',
+        description: 'Directory containing text files to check'
+    })
+    .demandCommand(1, 'You need to provide a filename or a directory')
     .help()
     .parseSync();
 
@@ -68,11 +73,12 @@ if (argv._[0] === 'upgrade') {
     process.exit(0);
 }
 
-const filename: string = argv._[0] as string;
+const filenameOrDir: string = argv._[0] as string;
 const adminOnly: boolean = argv['admin-only'] as boolean;
 const outputFile: string = argv.output as string;
 const debugMode: boolean = argv.debug as boolean;
 const concurrency: number = argv.concurrency as number;
+const directory: string | undefined = argv.directory as string | undefined;
 
 const screen = blessed.screen({
     smartCSR: true,
@@ -320,7 +326,7 @@ function showLoadingScreen(): Promise<void> {
     });
 }
 
-function readAccounts(filename: string, wp: Wordpress): void {
+function processFile(filename: string, wp: Wordpress): void {
     const fileStream = fs.createReadStream(filename);
     const rl = readline.createInterface({
         input: fileStream,
@@ -337,17 +343,42 @@ function readAccounts(filename: string, wp: Wordpress): void {
     });
 
     rl.on('close', () => {
-        wp.total = lineCount;
+        wp.total += lineCount;
         wp.updateTitle();
     });
 }
 
+function processDirectory(directory: string, wp: Wordpress): void {
+    fs.readdir(directory, (err, files) => {
+        if (err) {
+            console.error(colors.red('Error reading directory:'), err);
+            return;
+        }
+
+        const textFiles = files.filter(file => file.endsWith('.txt'));
+
+        if (textFiles.length === 0) {
+            console.log(colors.yellow('No text files found in the directory.'));
+            process.exit(1);
+        }
+
+        textFiles.forEach(file => {
+            const filePath = path.join(directory, file);
+            processFile(filePath, wp);
+        });
+    });
+}
 
 const wp = new Wordpress();
 
 showLoadingScreen().then(() => {
     wp.displayUI();
-    readAccounts(filename, wp);
+
+    if (directory) {
+        processDirectory(directory, wp);
+    } else {
+        processFile(filenameOrDir, wp);
+    }
 });
 
 process.on('SIGINT', () => {
